@@ -43,3 +43,6 @@
 
 #CNN models
 /sandbox/models/
+
+#tensorrt engine models
+*.engine
