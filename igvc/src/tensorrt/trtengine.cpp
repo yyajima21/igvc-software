@@ -52,7 +52,7 @@ ICudaEngine* loadModelAndCreateEngine(const char* uffFile, int maxBatchSize,
 }
 
 
-int loadAndExecuteEngine()
+int loadAndExecuteEngine(cv::Mat image)
 {
     auto parser = createUffParser();
     parser->registerInput("Placeholder", DimsCHW(3, 340, 450));
@@ -95,7 +95,7 @@ int loadAndExecuteEngine()
     ICudaEngine* engine = runtime->deserializeCudaEngine((unsigned char*)p, fsize, nullptr);
 
     /* create execution context */
-	IExecutionContext *context = engine->createExecutionContext();
+	  IExecutionContext *context = engine->createExecutionContext();
 
     /* get the input / output dimensions */
     int inputBindingIndex, outputBindingIndex;
@@ -123,7 +123,6 @@ int loadAndExecuteEngine()
 
     /* read image, convert color, and resize */
     std::cout << "Preprocessing input..." << std::endl;
-    cv::Mat image = cv::imread("/home/nvidia/Desktop/test.jpg", CV_LOAD_IMAGE_COLOR);
 
     if (image.data == NULL)
     {
