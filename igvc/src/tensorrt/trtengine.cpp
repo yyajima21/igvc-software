@@ -32,6 +32,9 @@ static const int INPUT_H = 28;
 static const int INPUT_W = 28;
 static const int OUTPUT_SIZE = 10;
 
+static ICudaEngine* engine;
+static IExecutionContext *context;
+
 ICudaEngine* loadModelAndCreateEngine(const char* uffFile, int maxBatchSize,
                                       IUffParser* parser)
 {
@@ -42,7 +45,7 @@ ICudaEngine* loadModelAndCreateEngine(const char* uffFile, int maxBatchSize,
     builder->setMaxBatchSize(maxBatchSize);
     builder->setMaxWorkspaceSize(MAX_WORKSPACE);
 
-    ICudaEngine* engine = builder->buildCudaEngine(*network);
+    engine = builder->buildCudaEngine(*network);
 
     /* we can clean the network and the parser */
     network->destroy();
@@ -51,9 +54,9 @@ ICudaEngine* loadModelAndCreateEngine(const char* uffFile, int maxBatchSize,
     return engine;
 }
 
-
-int loadAndExecuteEngine(cv::Mat image)
+int loadEngine()
 {
+    
     auto parser = createUffParser();
     parser->registerInput("Placeholder", DimsCHW(3, 340, 450));
     parser->registerOutput("upsample3/BiasAdd");
@@ -77,26 +80,45 @@ int loadAndExecuteEngine(cv::Mat image)
 //    outfile.write((char*)p, gieModelStream->size());
 //    outfile.close();
 
+    std::cout << "TEST1" << std::endl;
+
     /* get size of engine file */
     std::ifstream infile1("test.engine", std::ifstream::ate | std::ifstream::binary);
+    if (!infile1.is_open()) {
+        fprintf(stderr, "fail to open file to read: %s\n", "test.engine");
+        return -1;
+    }
     long fsize = infile1.tellg();
     infile1.close();
+
+    std::cout << "TEST2" << std::endl;
 
     /* load engine file */
     std::ifstream infile("test.engine", std::ios::in | std::ios::binary);
     if (!infile.is_open()) {
-        fprintf(stderr, "fail to open file to write: %s\n", "test.engine");
+        fprintf(stderr, "fail to open file to read: %s\n", "test.engine");
         return -1;
     }
+
+    std::cout << "TEST3" << std::endl;
     char* p = new char[fsize];
     infile.read(p, fsize);
     infile.close();
     IRuntime* runtime = createInferRuntime(gLogger);
-    ICudaEngine* engine = runtime->deserializeCudaEngine((unsigned char*)p, fsize, nullptr);
+    engine = runtime->deserializeCudaEngine((unsigned char*)p, fsize, nullptr);
 
     /* create execution context */
-	  IExecutionContext *context = engine->createExecutionContext();
+	context = engine->createExecutionContext();
+    
+    /* we need to keep the memory created by the parser */
+    parser->destroy();
 
+    return EXIT_SUCCESS;
+}
+
+
+cv::Mat executeEngine(cv::Mat image)
+{
     /* get the input / output dimensions */
     int inputBindingIndex, outputBindingIndex;
     inputBindingIndex = engine->getBindingIndex("Placeholder");
@@ -105,13 +127,13 @@ int loadAndExecuteEngine(cv::Mat image)
     if (inputBindingIndex < 0)
     {
         std::cout << "Invalid input name." << std::endl;
-        return 1;
+        return image;
     }
 
     if (outputBindingIndex < 0)
     {
         std::cout << "Invalid output name." << std::endl;
-        return 1;
+        return image;
     }
 
     Dims inputDims, outputDims;
@@ -127,12 +149,10 @@ int loadAndExecuteEngine(cv::Mat image)
     if (image.data == NULL)
     {
         std::cout << "Could not read image from file." << std::endl;
-        return 1;
+        return image;
     }
 
     cv::resize(image, image, cv::Size(inputWidth, inputHeight));
-    cv::imshow("TEST", image);
-    cv::waitKey(0);
 
     using namespace std::chrono;
     /* convert from uint8+NHWC to float+NCHW */
@@ -170,13 +190,6 @@ int loadAndExecuteEngine(cv::Mat image)
 
     cv::Mat outImage(image.size(), image.type());
     cvTensorToImage(image, outputDataHost, inputDims);
-    cv::imshow("TEST", image);
-    cv::waitKey(0);
 
-    /* we need to keep the memory created by the parser */
-    parser->destroy();
-
-    engine->destroy();
-    shutdownProtobufLibrary();
-    return EXIT_SUCCESS;
+    return image;
 }

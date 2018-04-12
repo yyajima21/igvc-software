@@ -58,7 +58,9 @@ sensor_msgs::CameraInfo ResizeCameraInfo(sensor_msgs::CameraInfoConstPtr oldCamI
 
 void img_callback(const cv::Mat msg_img, const sensor_msgs::ImageConstPtr& origMsg)
 {
-  loadAndExecuteEngine(msg_img);
+  cv_bridge::CvImagePtr newPtr = cv_bridge::toCvCopy(origMsg, "");
+  newPtr->image = executeEngine(msg_img);
+  pub.publish(newPtr->toImageMsg());
 }
 
 void info_img_callback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr& cam_info)
@@ -83,6 +85,8 @@ int main(int argc, char** argv)
   ros::NodeHandle pNh("~");
 
   image_transport::ImageTransport _it(nh);
+
+  loadEngine();
 
   image_transport::CameraSubscriber map_sub = _it.subscribeCamera("/usb_cam_center/image_raw", 1, info_img_callback);
 
