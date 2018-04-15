@@ -28,12 +28,23 @@ static Logger gLogger;
 
 #define MAX_WORKSPACE (1 << 30)
 
-static const int INPUT_H = 28;
-static const int INPUT_W = 28;
-static const int OUTPUT_SIZE = 10;
-
 static ICudaEngine* engine;
 static IExecutionContext *context;
+
+
+static float *inputDataHost, *outputDataHost;
+static size_t numInput, numOutput, numInSize, numOutSize;
+
+static Dims inputDims, outputDims;
+static int inputWidth, inputHeight;
+    
+static int inputBindingIndex, outputBindingIndex;
+    
+static void *bindings[2];
+static float *inputDataDevice, *outputDataDevice;
+
+using namespace std::chrono;
+    
 
 ICudaEngine* loadModelAndCreateEngine(const char* uffFile, int maxBatchSize,
                                       IUffParser* parser)
@@ -110,6 +121,44 @@ int loadEngine()
     /* create execution context */
 	context = engine->createExecutionContext();
     
+    /* get the input / output dimensions */
+    inputBindingIndex = engine->getBindingIndex("Placeholder");
+    outputBindingIndex = engine->getBindingIndex("upsample3/BiasAdd");
+
+    if (inputBindingIndex < 0)
+    {
+        std::cout << "Invalid input name." << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    if (outputBindingIndex < 0)
+    {
+        std::cout << "Invalid output name." << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    inputDims = engine->getBindingDimensions(inputBindingIndex);
+    outputDims = engine->getBindingDimensions(outputBindingIndex);
+    inputHeight = inputDims.d[1];
+    inputWidth = inputDims.d[2];
+    
+    numInput = numTensorElements(inputDims);
+    numOutput = numTensorElements(outputDims);
+    
+    numInSize = numInput * sizeof(float);    
+    numOutSize = numOutput * sizeof(float);
+        
+    inputDataHost = (float*) malloc(numInput * sizeof(float));
+    outputDataHost = (float*) malloc(numOutput * sizeof(float));
+ 
+    cudaMalloc((void**)&inputDataDevice, numInput * sizeof(float));
+    cudaMalloc((void**)&outputDataDevice, numOutput * sizeof(float));
+
+    bindings[inputBindingIndex] = (void*) inputDataDevice;
+    bindings[outputBindingIndex] = (void*) outputDataDevice;
+    
+    preprocessVgg(inputDataHost, inputDims);
+   
     /* we need to keep the memory created by the parser */
     parser->destroy();
 
@@ -119,77 +168,39 @@ int loadEngine()
 
 cv::Mat executeEngine(cv::Mat image)
 {
-    /* get the input / output dimensions */
-    int inputBindingIndex, outputBindingIndex;
-    inputBindingIndex = engine->getBindingIndex("Placeholder");
-    outputBindingIndex = engine->getBindingIndex("upsample3/BiasAdd");
-
-    if (inputBindingIndex < 0)
-    {
-        std::cout << "Invalid input name." << std::endl;
-        return image;
-    }
-
-    if (outputBindingIndex < 0)
-    {
-        std::cout << "Invalid output name." << std::endl;
-        return image;
-    }
-
-    Dims inputDims, outputDims;
-    inputDims = engine->getBindingDimensions(inputBindingIndex);
-    outputDims = engine->getBindingDimensions(outputBindingIndex);
-    int inputWidth, inputHeight;
-    inputHeight = inputDims.d[1];
-    inputWidth = inputDims.d[2];
 
     /* read image, convert color, and resize */
-    std::cout << "Preprocessing input..." << std::endl;
-
     if (image.data == NULL)
     {
         std::cout << "Could not read image from file." << std::endl;
         return image;
-    }
-
+    }    
+    
+    high_resolution_clock::time_point t1;
+    high_resolution_clock::time_point t2;    
+    t1 = high_resolution_clock::now();
+    
     cv::resize(image, image, cv::Size(inputWidth, inputHeight));
 
-    using namespace std::chrono;
     /* convert from uint8+NHWC to float+NCHW */
-    float *inputDataHost, *outputDataHost;
-    size_t numInput, numOutput;
-    numInput = numTensorElements(inputDims);
-    numOutput = numTensorElements(outputDims);
-    inputDataHost = (float*) malloc(numInput * sizeof(float));
-    outputDataHost = (float*) malloc(numOutput * sizeof(float));
     cvImageToTensor(image, inputDataHost, inputDims);
 
-    preprocessVgg(inputDataHost, inputDims);
-
     /* transfer to device */
-    high_resolution_clock::time_point t1 = high_resolution_clock::now();
-    float *inputDataDevice, *outputDataDevice;
-    cudaMalloc((void**)&inputDataDevice, numInput * sizeof(float));
-    cudaMalloc((void**)&outputDataDevice, numOutput * sizeof(float));
-    cudaMemcpy(inputDataDevice, inputDataHost, numInput * sizeof(float), cudaMemcpyHostToDevice);
-    void *bindings[2];
-    bindings[inputBindingIndex] = (void*) inputDataDevice;
-    bindings[outputBindingIndex] = (void*) outputDataDevice;
+    cudaMemcpy(inputDataDevice, inputDataHost, numInSize, cudaMemcpyHostToDevice);
 
     /* execute engine */
-    std::cout << "Executing inference engine..." << std::endl;
-    const int kBatchSize = 1;
-    context->execute(kBatchSize, bindings);
+    context->execute(1, bindings);
 
     /* transfer output back to host */
-    cudaMemcpy(outputDataHost, outputDataDevice, numOutput * sizeof(float), cudaMemcpyDeviceToHost);
-    high_resolution_clock::time_point t2 = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>( t2 - t1 ).count();
+    cudaMemcpy(outputDataHost, outputDataDevice, numOutSize, cudaMemcpyDeviceToHost);
 
-    std::cout << duration << std::endl;
-
+    /* convert tensor to output image */    
     cv::Mat outImage(image.size(), image.type());
     cvTensorToImage(image, outputDataHost, inputDims);
 
+    t2 = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>( t2 - t1 ).count();
+    std::cout << duration << std::endl;
+    
     return image;
 }
