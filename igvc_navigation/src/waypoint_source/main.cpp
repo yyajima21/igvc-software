@@ -1,3 +1,4 @@
+//TODO:Write brief explanation of file
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
@@ -10,14 +11,17 @@
 #include <string>
 #include "conversion.h"
 
+//TODO:Change file global variable names to match the pattern [NAME]_
 ros::Publisher waypoint_pub;
 std::vector<geometry_msgs::PointStamped> waypoints;
 geometry_msgs::PointStamped current_waypoint;
 geometry_msgs::Point map_origin;
 std::mutex current_mutex;
 
+//TODO:Nuke this method
 double dmsToDec(std::string dms)
 {
+
   auto qMarkIter = dms.find('?');
   auto aposIter = dms.find('\'');
   auto qouteIter = dms.find('\"');
@@ -35,6 +39,7 @@ double dmsToDec(std::string dms)
   return degrees;
 }
 
+//TODO:Add method documentation
 void loadWaypointsFile(std::string path, std::vector<geometry_msgs::PointStamped>& waypoints)
 {
   if (path.empty())
@@ -53,11 +58,13 @@ void loadWaypointsFile(std::string path, std::vector<geometry_msgs::PointStamped
   }
 
   std::string line = "";
+  //TODO: Remove auto, document use
   auto lineIndex = 1;
   while (!file.eof())
   {
     getline(file, line);
 
+    //TODO: Explain our .csv conventions
     if (!line.empty() && line[0] != '#')
     {
       std::vector<std::string> tokens = split(line, ',');
@@ -68,6 +75,7 @@ void loadWaypointsFile(std::string path, std::vector<geometry_msgs::PointStamped
         return;
       }
 
+      //TODO: Remove old waypoint conversion
       double lat, lon;
       if (tokens[0].find('?') != std::string::npos)
         lat = dmsToDec(tokens[0]);
@@ -89,11 +97,13 @@ void loadWaypointsFile(std::string path, std::vector<geometry_msgs::PointStamped
   }
 }
 
+//TODO:Euclidean distance
 double distanceBetweenPoints(const geometry_msgs::Point& p1, const geometry_msgs::Point& p2)
 {
   return sqrt((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y));
 }
 
+//TODO: Document method
 void positionCallback(const nav_msgs::OdometryConstPtr& msg)
 {
   std::lock_guard<std::mutex> lock(current_mutex);
@@ -101,30 +111,38 @@ void positionCallback(const nav_msgs::OdometryConstPtr& msg)
   cur.point.x -= map_origin.x;
   cur.point.y -= map_origin.y;
 
+  //TODO: Document competition rule, maybe should make this not a magic number
   if (distanceBetweenPoints(msg->pose.pose.position, cur.point) < 1.0)
   {
-    // advance to next waypoint.
+    // advance to next waypoint
     current_waypoint = waypoints.front();
+    //TODO: Add case for running out of waypoints in a more robust manner than "run in a circle until the sun explodes"
     if (waypoints.size() > 1)
     {
       waypoints.erase(waypoints.begin());
+      //TODO: Replace with ROS_INFO
       std::cerr << "Waypoint Source moving to next" << std::endl;
     }
   }
 }
 
+//TODO: Document method
 void originCallback(const sensor_msgs::NavSatFixConstPtr& msg)
 {
   std::lock_guard<std::mutex> lock(current_mutex);
   tf::TransformListener tf_listener;
   tf::StampedTransform transform;
   geometry_msgs::Point position;
+  //Convert robot's UTM lat, long to x,y in UTM
   UTM(msg->latitude, msg->longitude, &(position.x), &(position.y));
+  //TODO: Comments explaining methodology
   if (tf_listener.waitForTransform("/odom", "/base_footprint", ros::Time(0), ros::Duration(3.0)))
   {
+    //Get transform from odom to robot
     tf_listener.lookupTransform("/odom", "/base_footprint", ros::Time(0), transform);
     geometry_msgs::TransformStamped result;
     tf::transformStampedTFToMsg(transform, result);
+    //compute coordinates of odom's origin in UTM by subtracting the offset
     position.x -= result.transform.translation.x;
     position.y -= result.transform.translation.y;
     map_origin = position;
@@ -138,6 +156,7 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ros::NodeHandle nhp("~");
 
+  //TODO: Nuke
   ROS_INFO_STREAM("Has param: " << nhp.hasParam("file"));
 
   std::string path;
@@ -162,6 +181,7 @@ int main(int argc, char** argv)
     {
       {
         std::lock_guard<std::mutex> lock(current_mutex);
+        //TODO:Remove auto keyword
         auto waypoint_for_pub = current_waypoint;
         waypoint_for_pub.header.stamp = ros::Time::now();
         waypoint_for_pub.header.seq++;

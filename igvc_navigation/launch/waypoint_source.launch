@@ -2,6 +2,7 @@
 
 <launch>
 
+    <!--TODO: Refactor file path for waypoints.csv and change name from 'file' to something more descriptive-->
     <node name="waypoint_source" pkg="igvc_navigation" type="waypoint_source" output="screen" >
         <param name="file" value="$(find igvc_navigation)/../sandbox/waypoints.csv" />
     </node>
