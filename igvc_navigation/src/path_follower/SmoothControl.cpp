@@ -1,11 +1,15 @@
+//TODO:Write general description of class, add link to paper detailing this algorithm
 #include "SmoothControl.h"
 
+//TODO:General method documentation
 void SmoothControl::getTrajectory(igvc_msgs::velocity_pair& vel, nav_msgs::Path& trajectory, Eigen::Vector3d cur_pos,
                                   Eigen::Vector3d target)
 {
   double dt = rollOutTime / 10;
+  //TODO:What is 15? What is 10? Remove magic numbers.
   for (int i = 0; i < 15; i++)
   {
+    //TODO: Remove or place these debug statements in ROS_DEBUG_STREAM
     // std::cout << "cur_pos = " << cur_pos[0] << ", " << cur_pos[1] << ", " << cur_pos[2] << std::endl;
     // std::cout << "target = " << target[0] << ", " << target[1] << ", " << target[2] << std::endl;
     Eigen::Vector3d action;
@@ -41,6 +45,8 @@ void SmoothControl::getTrajectory(igvc_msgs::velocity_pair& vel, nav_msgs::Path&
   // std::cout << "\n end" << std::endl;
 }
 
+
+//TODO:Write general documentation for method
 void SmoothControl::getAction(Eigen::Vector3d& result, Eigen::Vector3d cur_pos, Eigen::Vector3d target)
 {
   double delta, theta;
@@ -87,7 +93,7 @@ void SmoothControl::getAction(Eigen::Vector3d& result, Eigen::Vector3d cur_pos, 
 
   // std::cout << "slope = "<< slope[0] << ", " << slope[1] << std::endl;
   // std::cout << "theta = " << theta << " delta = " << delta << std::endl;
-
+  //TODO:Comment meanings for arbitrary variable names if they are mentioned in the paper
   double d = sqrt(pow(target[0] - cur_pos[0], 2) + pow(target[1] - cur_pos[1], 2));
 
   double K = k2 * (delta - atan(k1 * theta));
@@ -98,6 +104,7 @@ void SmoothControl::getAction(Eigen::Vector3d& result, Eigen::Vector3d cur_pos, 
   result[1] = w;
 }
 
+//TODO:Write general documentation for method, add comments explaining variable names
 void SmoothControl::getResult(Eigen::Vector3d& result, Eigen::Vector3d cur_pos, Eigen::Vector3d action)
 {
   // std::cout << "get result v = " << action[0] << " w = " << action[1] << std::endl;
@@ -114,6 +121,7 @@ void SmoothControl::getResult(Eigen::Vector3d& result, Eigen::Vector3d cur_pos, 
     Matrix3d T;
     double wdt = w * dt;
     T << cos(wdt), -sin(wdt), 0, sin(wdt), cos(wdt), 0, 0, 0, 1;
+    //TODO:Name vectors
     Vector3d a(cur_pos[0] - ICCx, cur_pos[1] - ICCy, cur_pos[2]);
     Vector3d b = T * a;
     Vector3d c = b + Vector3d(ICCx, ICCy, wdt);
