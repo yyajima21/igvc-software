@@ -1,3 +1,4 @@
+//TODO: Write general description of node, also look for places where implementation and business logic are entagled.
 #include <igvc_msgs/velocity_pair.h>
 #include <igvc_utils/SerialPort.h>
 #include <ros/publisher.h>
@@ -35,6 +36,7 @@ std::string toBoundedString(double input)
 bool validateValues(std::string ret, int loc, int end, double left, double right)
 {
   std::vector<std::string> vals = split(ret.substr(loc + 1, end), ',');
+  //TODO:Remove this info stream
   ROS_INFO_STREAM("Successfully set p values");
   bool valid_values = true;
   if (vals.size() == 2)
@@ -65,11 +67,14 @@ int main(int argc, char** argv)
   int baud_rate;
   nhp.param(std::string("baud_rate"), baud_rate, 9600);
 
+  //TODO:Explain these params
   int messages_to_read;
   nhp.param(std::string("messages_to_read"), messages_to_read, 3);
 
+  //TODO:Explain these params
   nhp.param("precision", precision, 1);
 
+  //TODO:Explain these variable names
   double p_l, p_r, d_l, d_r, i_l, i_r;
   nhp.param("p_l", p_l, 3.0);
   nhp.param("p_r", p_r, 3.0);
@@ -88,8 +93,10 @@ int main(int argc, char** argv)
   port.flush();
   ROS_INFO_STREAM("Motor Board ready.");
 
+  //TODO:Turn this into a parameter, with comment to not touch it and why (mbed must agree)
   ros::Rate rate(20);
 
+  //TODO:Explain this syntax
   std::string p_values = "#P" + toBoundedString(p_l) + "," + toBoundedString(p_r) + "\n";
   std::string d_values = "#D" + toBoundedString(d_l) + "," + toBoundedString(d_r) + "\n";
   std::string i_values = "#I" + toBoundedString(i_l) + "," + toBoundedString(i_r) + "\n";
@@ -137,6 +144,7 @@ int main(int argc, char** argv)
           valid_values_i = validateValues(ret, i_loc, end, i_l, i_r);
           ROS_INFO("Successfully set I values");
         }
+        //TODO:Explain V
         else if (ret.at(1) != 'V')
         {
           ROS_ERROR_STREAM("Recieved unknown string while setting PID values " << ret);
@@ -154,6 +162,7 @@ int main(int argc, char** argv)
   // sends down motor commands and recieves multiple responses back
   while (ros::ok() && port.isOpen())
   {
+    //TODO:Explain this line
     std::string msg = "$" + (enabled ? toBoundedString(current_motor_command.left_velocity) : toBoundedString(0.0)) +
                       "," + (enabled ? toBoundedString(current_motor_command.right_velocity) : toBoundedString(0.0)) +
                       "\n";
@@ -163,7 +172,9 @@ int main(int argc, char** argv)
     std::string ret = port.readln();
     size_t dollar = ret.find('$');
     size_t pound = ret.find('#');
+    //TODO:Change count to msg_count
     int count = 0;
+    //TODO: Include the finding of '$' and '#' in this condition
     while ((dollar != std::string::npos || pound != std::string::npos) && count <= messages_to_read)
     {
       count++;
@@ -198,6 +209,7 @@ int main(int argc, char** argv)
             battery_avg += voltage / battery_avg_num;
             battery_msg.data = battery_avg;
             battery_pub.publish(battery_msg);
+            //TODO:Document magic number
             if (battery_avg < 23.5 && battery_vals.size() >= battery_avg_num)
             {
               ROS_ERROR_STREAM("Battery voltage dangerously low");
