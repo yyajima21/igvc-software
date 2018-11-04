@@ -1,3 +1,4 @@
+//TODO:Write general description of node
 #define _USE_MATH_DEFINES
 
 #include <igvc_msgs/velocity_pair.h>
@@ -31,6 +32,7 @@ double get_distance(double x1, double y1, double x2, double y2)
   return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
 }
 
+//TODO:Write general documentation to method
 void position_callback(const nav_msgs::OdometryConstPtr& msg)
 {
   if (path.get() == nullptr)
@@ -55,13 +57,17 @@ void position_callback(const nav_msgs::OdometryConstPtr& msg)
   float cur_theta = tf::getYaw(q);
 
   float tar_x, tar_y, tar_theta;
+  //TODO:Rename end to non-keyword
   geometry_msgs::Point end = path->poses[path->poses.size() - 1].pose.position;
   double path_index = 0;
   double closest = std::abs(get_distance(cur_x, cur_y, path->poses[0].pose.position.x, path->poses[0].pose.position.y));
+  //TODO:Rename temp
   double temp = std::abs(
       get_distance(cur_x, cur_y, path->poses[path_index].pose.position.x, path->poses[path_index].pose.position.y));
+  //TODO:Explain while loop's purpose
   while (path_index < path->poses.size() && temp <= closest)
   {
+    //TODO:Explain if statement
     if (temp < closest)
     {
       closest = temp;
@@ -71,12 +77,16 @@ void position_callback(const nav_msgs::OdometryConstPtr& msg)
         get_distance(cur_x, cur_y, path->poses[path_index].pose.position.x, path->poses[path_index].pose.position.y));
   }
 
+  //TODO:Explain if statement
   if (get_distance(cur_x, cur_y, end.x, end.y) > lookahead_dist)
   {
     double distance = 0;
+    //TODO:Rename cont
     bool cont = true;
+    //TODO:Explain while statement
     while (cont && path_index < path->poses.size() - 1)
     {
+      //TODO:Point one and point two need to be renamed
       geometry_msgs::Point point1, point2;
       point1 = path->poses[path_index].pose.position;
       point2 = path->poses[path_index + 1].pose.position;
@@ -123,6 +133,7 @@ void position_callback(const nav_msgs::OdometryConstPtr& msg)
     tar_theta = atan2((yDiff), (xDiff));
   }
 
+  //TODO:Change to timestamp time
   ros::Time time = ros::Time::now();
 
   geometry_msgs::PointStamped target_point;
@@ -170,6 +181,7 @@ int main(int argc, char** argv)
   pNh.param(std::string("k2"), controller.k2, 3.0);
   pNh.param(std::string("roll_out_time"), controller.rollOutTime, 2.0);
   pNh.param(std::string("lookahead_dist"), lookahead_dist, 2.0);
+  //TODO:Change vel to velocity
   pNh.param(std::string("maximum_vel"), maximum_vel, 1.6);
 
   ros::Subscriber path_sub = nh.subscribe("/path", 1, path_callback);

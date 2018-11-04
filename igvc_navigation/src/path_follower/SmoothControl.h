@@ -16,6 +16,7 @@ public:
   double k1, k2;
   double axle_length;
   double rollOutTime;
+  //TODO:Rename v to velocity
   double v;
 
   void getTrajectory(igvc_msgs::velocity_pair& vel, nav_msgs::Path& trajectory, Eigen::Vector3d cur_pos,
