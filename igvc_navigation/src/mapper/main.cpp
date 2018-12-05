@@ -18,6 +18,8 @@ ros::Publisher debug_pub;
 ros::Publisher debug_pcl_pub;
 ros::Publisher debug_empty_pcl_pub;
 ros::Publisher debug_log_odds_pcl_pub;
+ros::Publisher debug_lines_pcl_pub;
+ros::Publisher debug_barrels_pcl_pub;
 std::unique_ptr<cv::Mat> published_map;  // matrix will be publishing
 std::unique_ptr<cv::Mat> empty_map;  // empty points for debugging
 std::unique_ptr<cv::Mat> line_map;  // probability matrix for lines
@@ -55,7 +57,7 @@ float toLogOdds(float px) {
 }
 
 float fromLogOdds(float lx) {
-  return 1 - (1/(exp(lx)));
+  return 1 - (1/(1 + exp(lx)));
 }
 
 uchar toUChar(float px) {
@@ -134,18 +136,20 @@ void invSensor(float x1, float y1, float x2, float y2, std::vector<Eigen::Vector
       if (occupied_set.find(vec) != occupied_set.end()) {
         break;
       }
-      if (line && barrel_map->at<uchar>(y, x) > (uchar) 230) {
-        break;
-      }
+      //// eigen is column major, need to swap
+      //if (line && (*log_odds_map_barrels)(x, y) > 0.9) {
+      //  break;
+      //}
       vector.emplace_back(vec);
     } else {
       Eigen::Vector2i vec(x, y);
       if (occupied_set.find(vec) != occupied_set.end()) {
         break;
       }
-      if (line && barrel_map->at<uchar>(x, y) > (uchar) 230) {
-        break;
-      }
+      //// eigen is column major, need to swap
+      //if (line && (*log_odds_map_barrels)(y, x) > 0.9) {
+      //  break;
+      //}
       vector.emplace_back(vec);
     }
 
@@ -171,7 +175,12 @@ void updateGridBarrels(const pcl::PointCloud<pcl::PointXYZ>::Ptr &transformed) {
 
     int point_x = static_cast<int>(std::round(x_point_raw / resolution + state.x / resolution + start_x));
     int point_y = static_cast<int>(std::round(y_point_raw / resolution + state.y / resolution + start_y));
-    occupied_set.emplace(Eigen::Vector2i(point_x, point_y));
+    int distance = pow(y_point_raw - state.y, 2) + pow(x_point_raw - state.x, 2);
+    if (point_x >= 0 && point_y >= 0 && point_x < length_y && start_y < width_x && distance > 1) {
+      (*log_odds_map_barrels)(point_y, point_x) += log_odds_occupied;
+      barrel_map->at<uchar>(point_x, point_y) = (uchar) toLogOdds((*log_odds_map_barrels)(point_y, point_x));
+      occupied_set.emplace(Eigen::Vector2i(point_x, point_y));
+    }
   }
 
   for (point_iter = transformed->begin(); point_iter < transformed->points.end(); point_iter++) {
@@ -193,7 +202,9 @@ void updateGridBarrels(const pcl::PointCloud<pcl::PointXYZ>::Ptr &transformed) {
       for (auto cell : empty_points) {
         if (!(std::tie(cell.x(), cell.y()) == std::tie(robot_grid_x, robot_grid_y) ||
               std::tie(cell.x(), cell.y()) == std::tie(point_x, point_y))) {
+          //ROS_INFO_STREAM(std::endl << "Cur: " << (*log_odds_map_barrels)(cell.y(), cell.x()));
           (*log_odds_map_barrels)(cell.y(), cell.x()) += log_odds_empty;
+          //ROS_INFO_STREAM("New: " << (*log_odds_map_barrels)(cell.y(), cell.x()));
         }
       }
     }
@@ -207,7 +218,7 @@ void updateGridLines(const pcl::PointCloud<pcl::PointXYZ>::Ptr &transformed) {
   std::unordered_set<Eigen::Vector2i, matrix_hash<Eigen::Vector2i>> occupied_set;
   empty_points.reserve(255);
   // Clear empty map testing
-  *empty_map = cv::Mat::zeros(empty_map->size(), empty_map->type());
+  //*empty_map = cv::Mat::zeros(empty_map->size(), empty_map->type());
 
   // First pass to put all points into a set
   for (point_iter = transformed->begin(); point_iter < transformed->points.end(); point_iter++) {
@@ -216,6 +227,8 @@ void updateGridLines(const pcl::PointCloud<pcl::PointXYZ>::Ptr &transformed) {
 
     int point_x = static_cast<int>(std::round(x_point_raw / resolution + state.x / resolution + start_x));
     int point_y = static_cast<int>(std::round(y_point_raw / resolution + state.y / resolution + start_y));
+    (*log_odds_map_lines)(point_y, point_x) += log_odds_occupied;
+    line_map->at<uchar>(point_x, point_y) = (uchar) toLogOdds((*log_odds_map_lines)(point_y, point_x));
     occupied_set.emplace(Eigen::Vector2i(point_x, point_y));
   }
 
@@ -236,14 +249,11 @@ void updateGridLines(const pcl::PointCloud<pcl::PointXYZ>::Ptr &transformed) {
 
       invSensor(robot_grid_x, robot_grid_y, clear_x, clear_y, empty_points, occupied_set, true);
       for (auto cell : empty_points) {
-        if (!(std::tie(cell.x(), cell.y()) == std::tie(robot_grid_x, robot_grid_y) ||
-              std::tie(cell.x(), cell.y()) == std::tie(point_x, point_y))) {
-          empty_map->at<uchar>(cell.x(), cell.y()) = 1;
-          if (published_map->at<uchar>(cell.x(), cell.y()) > 5) {
-            published_map->at<uchar>(cell.x(), cell.y()) -= (uchar) 5;
-          }
-          (*log_odds_map_lines)(cell.y(), cell.x()) += log_odds_empty;
+        empty_map->at<uchar>(cell.x(), cell.y()) = 1;
+        if (published_map->at<uchar>(cell.x(), cell.y()) > 5) {
+          published_map->at<uchar>(cell.x(), cell.y()) -= (uchar) 5;
         }
+        (*log_odds_map_lines)(cell.y(), cell.x()) += log_odds_empty;
       }
     }
   }
@@ -266,8 +276,8 @@ void updateOccupancyGrid(const pcl::PointCloud<pcl::PointXYZ>::Ptr &transformed)
       } else {
         published_map->at<uchar>(point_x, point_y) = UCHAR_MAX;
       }
-      (*log_odds_map_lines)(point_y, point_x) += log_odds_occupied;
-      line_map->at<uchar>(point_x, point_y) = (uchar) toLogOdds((*log_odds_map_lines)(point_y, point_x));
+      //(*log_odds_map_lines)(point_y, point_x) += log_odds_occupied;
+      //line_map->at<uchar>(point_x, point_y) = (uchar) toLogOdds((*log_odds_map_lines)(point_y, point_x));
     } else {
       offMapCount++;
     }
@@ -328,7 +338,7 @@ void frame_callback(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr &msg, const s
 
   // Apply transformation to msg points using the transform for this topic.
   pcl_ros::transformPointCloud(*msg, *transformed, transforms.at(topic));
-  updateOccupancyGrid(transformed);
+  //updateOccupancyGrid(transformed);
   if (topic == "/semantic_segmentation_cloud") {
     updateGridLines(transformed);
   } else {
@@ -393,25 +403,73 @@ void frame_callback(const pcl::PointCloud<pcl::PointXYZ>::ConstPtr &msg, const s
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr occupancy_map_pcl =
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
-    for (size_t i = 0, size = log_odds_map_lines->size(); i < size; i++)
-    {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr lines_pcl =
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr barrels_pcl =
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
+    for (Eigen::Index i = 0, size = log_odds_map_lines->size(); i < size; i++) {
       int y = static_cast<int>(i % log_odds_map_lines->rows());
       int x = static_cast<int>(i / log_odds_map_lines->rows());
-      if (*(log_odds_map_lines->data() + i) != 0 || *(log_odds_map_barrels->data() + i) != 0) {
+      if (*(log_odds_map_lines->data() + i) != 0) {
         // Eigen::Matrix is column major
         float p_line = fromLogOdds(*(log_odds_map_lines->data() + i));
-        float p_barrel = fromLogOdds(*(log_odds_map_barrels->data() + i));
-        float p_occupied = p_line + p_barrel > 1 ? 1 : p_line + p_barrel;
-        uchar uCharVal = toUChar(p_occupied);
-        pcl::PointXYZRGB p(uCharVal, uCharVal, uCharVal);
-        p.x = (x - start_x) * resolution;
-        p.y = (y - start_y) * resolution;
-        occupancy_map_pcl->points.emplace_back(p);
+        uchar p_line_uchar = toUChar(p_line);
+        pcl::PointXYZRGB line_point(0, p_line_uchar, 0);
+        line_point.x = (x - start_x) * resolution;
+        line_point.y = (y - start_y) * resolution;
+        lines_pcl->points.emplace_back(line_point);
       }
+    }
+    for (Eigen::Index i = 0, size = log_odds_map_barrels->size(); i < size; i++) {
+      int y = static_cast<int>(i % log_odds_map_barrels->rows());
+      int x = static_cast<int>(i / log_odds_map_barrels->rows());
+      if (*(log_odds_map_barrels->data() + i) != 0) {
+        // Eigen::Matrix is column major
+        float p_barrel = fromLogOdds(*(log_odds_map_barrels->data() + i));
+        uchar p_barrel_uchar = toUChar(p_barrel);
+        pcl::PointXYZRGB barrel_point;
+        if (p_barrel > 0.5) {
+          barrel_point = pcl::PointXYZRGB(p_barrel_uchar, 0, 0);
+        } else {
+          barrel_point = pcl::PointXYZRGB(0, 0, (uchar)255-p_barrel_uchar);
+        }
+        barrel_point.x = (x - start_x) * resolution;
+        barrel_point.y = (y - start_y) * resolution;
+        barrels_pcl->points.emplace_back(barrel_point);
+      }
+      //if (*(log_odds_map_lines->data() + i) != 0 || *(log_odds_map_barrels->data() + i) != 0) {
+      //  // Eigen::Matrix is column major
+      //  float p_line = fromLogOdds(*(log_odds_map_lines->data() + i));
+      //  float p_barrel = fromLogOdds(*(log_odds_map_barrels->data() + i));
+      //  float p_occupied = (p_line + p_barrel >= 1.0f) ? 1.0f : p_line + p_barrel;
+      //  uchar uCharVal = toUChar(p_occupied);
+      //  uchar p_barrel_uchar = toUChar(p_barrel);
+      //  uchar p_line_uchar = toUChar(p_line);
+      //  pcl::PointXYZRGB p(uCharVal, uCharVal, uCharVal);
+      //  pcl::PointXYZRGB line_point(0, p_line_uchar, 0);
+      //  pcl::PointXYZRGB barrel_point(p_barrel_uchar, 0, 0);
+      //  p.x = (x - start_x) * resolution;
+      //  p.y = (y - start_y) * resolution;
+      //  line_point.x = (x - start_x) * resolution;
+      //  line_point.y = (y - start_y) * resolution;
+      //  barrel_point.x = (x - start_x) * resolution;
+      //  barrel_point.y = (y - start_y) * resolution;
+      //  occupancy_map_pcl->points.emplace_back(p);
+      //  lines_pcl->points.emplace_back(line_point);
+      //  barrels_pcl->points.emplace_back(barrel_point);
+      //}
     }
     occupancy_map_pcl->header.frame_id = "/odom";
     occupancy_map_pcl->header.stamp = msg->header.stamp;
     debug_log_odds_pcl_pub.publish(occupancy_map_pcl);
+
+    barrels_pcl->header.frame_id = "/odom";
+    barrels_pcl->header.stamp = msg->header.stamp;
+    debug_barrels_pcl_pub.publish(barrels_pcl);
+
+    lines_pcl->header.frame_id = "/odom";
+    lines_pcl->header.stamp = msg->header.stamp;
+    debug_lines_pcl_pub.publish(lines_pcl);
     // DEBUG ========================================
   }
   //  update = true;
@@ -422,6 +480,7 @@ int main(int argc, char **argv) {
   ros::NodeHandle nh;
   ros::NodeHandle pNh("~");
   std::string topics;
+
 
   std::list<ros::Subscriber> subs;
   tf_listener = std::unique_ptr<tf::TransformListener>(new tf::TransformListener());
@@ -480,7 +539,9 @@ int main(int argc, char **argv) {
   line_map = std::unique_ptr<cv::Mat>(new cv::Mat(length_y, width_x, CV_8UC1));
   barrel_map = std::unique_ptr<cv::Mat>(new cv::Mat(length_y, width_x, CV_8UC1));
   log_odds_map_lines = std::unique_ptr<Eigen::MatrixXf>(new Eigen::MatrixXf(length_y, width_x));
+  log_odds_map_lines->setZero();
   log_odds_map_barrels = std::unique_ptr<Eigen::MatrixXf>(new Eigen::MatrixXf(length_y, width_x));
+  log_odds_map_barrels->setZero();
 
   map_pub = nh.advertise<igvc_msgs::map>("/map", 1);
   map_empty_pub = nh.advertise<igvc_msgs::map>("/empty_map", 1);
@@ -490,7 +551,10 @@ int main(int argc, char **argv) {
     debug_pcl_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("/map_debug_pcl", 1);
     debug_empty_pcl_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("/map_empty_debug_pcl", 1);
     debug_log_odds_pcl_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("/map_log_odds_pcl_pub", 1);
+    debug_lines_pcl_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("/map_lines_pcl_pub", 1);
+    debug_barrels_pcl_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("/map_barrels_pcl_pub", 1);
   }
+  ROS_INFO_STREAM(std::endl << "Log_odds_empty: " << log_odds_empty << ", full: " << log_odds_occupied << std::endl);
 
   ros::spin();
 }
