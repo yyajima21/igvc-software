@@ -4,8 +4,8 @@
     <!-- Map Node -->
     <node name="mapper" pkg="igvc_navigation" type="mapper" output="screen">
             <param name="topics" type="string" value="/scan/pointcloud /semantic_segmentation_cloud"/>
-            <param name="occupancy_grid_length" type="int" value="50" />
-            <param name="occupancy_grid_width" type="int" value="50" />
+            <param name="occupancy_grid_length" type="int" value="200" />
+            <param name="occupancy_grid_width" type="int" value="200" />
             <param name="occupancy_grid_resolution" type="double" value="0.2" />
             <param name="occupancy_grid_threshold" type="int" value="178" />
             <param name="decay_period" type="double" value="10000" />
@@ -14,6 +14,7 @@
             <param name="start_Y" type="double" value="25"/>
             <param name="increment_step" type="int" value="125"/>
             <param name="debug" type="bool" value="true"/>
+            <param name="sensor_model_padding" type="double" value="2.0"/>
     </node>
 
     <arg name="plot_rviz" default="false"/>
