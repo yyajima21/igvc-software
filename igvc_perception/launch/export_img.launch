@@ -1,0 +1,10 @@
+<!-- Launch with "rosbag" param which specifies the path to the rosbag -->
+<!-- ex: "roslaunch igvc_utils export_img.launch rosbag:=/home/user/Robojackets/mybag.bag" -->
+<launch>
+    <arg name="rosbag" />
+    <node name="rosbag" type="play" pkg="rosbag" required="true" args="$(arg rosbag)"/>
+    <node name="republish" type="republish" pkg="image_transport" output="screen" args="compressed in:=/usb_cam_center/image_raw raw out:=/usb_cam_center/image_raw/raw"/>
+    <node name="extract" pkg="image_view" type="extract_images" required="true" respawn="false" output="screen" cwd="ROS_HOME"/>
+    <remap from="image" to="/usb_cam_center/image_raw/raw"/>
+    </node>
+</launch>
