@@ -10,6 +10,8 @@ Panels:
         - /TF1
         - /Path1
         - /PointCloud21
+        - /PointCloud22
+        - /Odometry1
       Splitter Ratio: 0.5
     Tree Height: 983
   - Class: rviz/Selection
@@ -227,6 +229,70 @@ Visualization Manager:
       Topic: /path
       Unreliable: false
       Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 1
+        Min Value: 1
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 0; 95; 255
+      Color Transformer: RGB8
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 100; 100; 255
+      Max Intensity: 4096
+      Min Color: 100; 100; 255
+      Min Intensity: 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.10000000149011612
+      Style: Spheres
+      Topic: /expanded
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Angle Tolerance: 0.10000000149011612
+      Class: rviz/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.30000001192092896
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Keep: 20
+      Name: Odometry
+      Position Tolerance: 0.10000000149011612
+      Shape:
+        Alpha: 1
+        Axes Length: 1
+        Axes Radius: 0.10000000149011612
+        Color: 255; 25; 0
+        Head Length: 0.30000001192092896
+        Head Radius: 0.10000000149011612
+        Shaft Length: 1
+        Shaft Radius: 0.05000000074505806
+        Value: Arrow
+      Topic: /odometry/filtered
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -251,26 +317,21 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/Orbit
-      Distance: 23.002674102783203
+      Angle: 4.84000301361084
+      Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
-      Focal Point:
-        X: -0.7615700960159302
-        Y: 7.300470352172852
-        Z: -5.000775337219238
-      Focal Shape Fixed Size: true
-      Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5597963333129883
-      Target Frame: <Fixed Frame>
-      Value: Orbit (rviz)
-      Yaw: 1.300398588180542
+      Scale: 100.81853485107422
+      Target Frame: base_footprint
+      Value: TopDownOrtho (rviz)
+      X: 0
+      Y: 0
     Saved:
       - Class: rviz/Orbit
         Distance: 10.23285961151123
@@ -309,4 +370,4 @@ Window Geometry:
     collapsed: false
   Width: 2426
   X: 134
-  Y: 0
+  Y: 55
